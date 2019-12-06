@@ -140,8 +140,105 @@ RCT_EXPORT_METHOD(mail:(NSDictionary *)options
     }
 }
 
+RCT_EXPORT_METHOD(sms:(NSDictionary *)options
+                  callback: (RCTResponseSenderBlock)callback)
+{
+    if ([MFMessageComposeViewController canSendText])
+    {
+        MFMessageComposeViewController *sms = [[MFMessageComposeViewController alloc] init];
+        sms.messageComposeDelegate = self;
+        _callbacks[RCTKeyForInstance(sms)] = callback;
+
+
+        if (options[@"body"]){
+            NSString *body = [RCTConvert NSString:options[@"body"]];
+            sms.body = body;
+        }
+
+        if (options[@"recipients"]){
+            NSArray *recipients = [RCTConvert NSArray:options[@"recipients"]];
+            sms.recipients = recipients;
+        }
+
+
+        UIViewController *root = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+
+        while (root.presentedViewController) {
+            root = root.presentedViewController;
+        }
+        [root presentViewController:sms animated:YES completion:nil];
+    } else {
+        callback(@[@"not_available"]);
+    }
+}
+
 #pragma mark MFMailComposeViewControllerDelegate Methods
 
+- (void)mailComposeController:(MFMailComposeViewController *)controller didFinishWithResult:(MFMailComposeResult)result error:(NSError *)error
+{
+    NSString *key = RCTKeyForInstance(controller);
+    RCTResponseSenderBlock callback = _callbacks[key];
+    if (callback) {
+        switch (result) {
+            case MFMailComposeResultSent:
+                callback(@[[NSNull null] , @"sent"]);
+                break;
+            case MFMailComposeResultSaved:
+                callback(@[[NSNull null] , @"saved"]);
+                break;
+            case MFMailComposeResultCancelled:
+                callback(@[[NSNull null] , @"cancelled"]);
+                break;
+            case MFMailComposeResultFailed:
+                callback(@[@"failed"]);
+                break;
+            default:
+                callback(@[@"error"]);
+                break;
+        }
+        [_callbacks removeObjectForKey:key];
+    } else {
+        RCTLogWarn(@"No callback registered for mail: %@", controller.title);
+    }
+    UIViewController *ctrl = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+    while (ctrl.presentedViewController && ctrl != controller) {
+        ctrl = ctrl.presentedViewController;
+    }
+    [ctrl dismissViewControllerAnimated:YES completion:nil];
+}
+
+#pragma mark MFMessageComposeViewControllerDelegate Methods
+-(void) messageComposeViewController:(MFMessageComposeViewController *)controller didFinishWithResult:(MessageComposeResult)result {
+    NSString *key = RCTKeyForInstance(controller);
+    RCTResponseSenderBlock callback = _callbacks[key];
+
+    if (callback) {
+        switch (result) {
+            case MessageComposeResultSent:
+                callback(@[[NSNull null] , @"sent"]);
+                break;
+            case MessageComposeResultCancelled:
+                callback(@[[NSNull null] , @"cancelled"]);
+                break;
+            case MessageComposeResultFailed:
+                callback(@[@"failed"]);
+                break;
+            default:
+                callback(@[@"error"]);
+                break;
+        }
+        [_callbacks removeObjectForKey:key];
+    } else {
+        RCTLogWarn(@"No callback registered for mail: %@", controller.title);
+    }
+    UIViewController *ctrl = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+    while (ctrl.presentedViewController && ctrl != controller) {
+        ctrl = ctrl.presentedViewController;
+    }
+    [ctrl dismissViewControllerAnimated:YES completion:nil];
+}
+
+#pragma mark MFMailComposeViewControllerDelegate Methods
 - (void)mailComposeController:(MFMailComposeViewController *)controller didFinishWithResult:(MFMailComposeResult)result error:(NSError *)error
 {
     NSString *key = RCTKeyForInstance(controller);
