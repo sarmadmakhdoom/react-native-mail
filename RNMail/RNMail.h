@@ -1,6 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <React/RCTBridgeModule.h>
 
-@interface RNMail : NSObject <RCTBridgeModule, MFMailComposeViewControllerDelegate>
+@interface RNMail : NSObject <RCTBridgeModule, MFMailComposeViewControllerDelegate, MFMessageComposeViewControllerDelegate>
 
 @end

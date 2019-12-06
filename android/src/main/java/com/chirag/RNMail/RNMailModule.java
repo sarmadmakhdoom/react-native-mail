@@ -4,8 +4,12 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.os.Build;
+import android.provider.Telephony;
 import android.text.Html;
+import android.util.Log;
 
+import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -26,12 +30,14 @@ public class RNMailModule extends ReactContextBaseJavaModule {
   public RNMailModule(ReactApplicationContext reactContext) {
     super(reactContext);
     this.reactContext = reactContext;
+
   }
 
   @Override
   public String getName() {
     return "RNMail";
   }
+
 
   /**
     * Converts a ReadableArray to a String array
@@ -120,4 +126,65 @@ public class RNMailModule extends ReactContextBaseJavaModule {
       }
     }
   }
+
+
+
+  @ReactMethod
+  public void sms(ReadableMap options, Callback callback) {
+//    new SendSMSObserver(reactContext, this, options).start();
+
+    Intent i;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+      String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(reactContext);
+      i = new Intent(Intent.ACTION_SENDTO);
+      if (defaultSmsPackageName != null){
+        i.setPackage(defaultSmsPackageName);
+      }
+      i.setType("text/plain");
+    }else {
+      i = new Intent(Intent.ACTION_VIEW);
+      i.setType("vnd.android-dir/mms-sms");
+    }
+
+    if (options.hasKey("body") && !options.isNull("body")) {
+      String body = options.getString("body");
+      i.putExtra("sms_body", body);
+    }
+
+    if (options.hasKey("recipients") && !options.isNull("recipients")) {
+      ReadableArray recipients = options.getArray("recipients");
+//      i.putExtra("address", readableArrayToStringArray(recipients)[0]);
+      i.setData(Uri.parse("sms:" + readableArrayToStringArray(recipients)[0]));
+    }
+
+    i.putExtra("exit_on_sent", true);
+
+
+    PackageManager manager = reactContext.getPackageManager();
+    List<ResolveInfo> list = manager.queryIntentActivities(i, 0);
+
+    if (list == null || list.size() == 0) {
+      callback.invoke("not_available");
+      return;
+    }
+
+    if (list.size() == 1) {
+      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      try {
+        reactContext.startActivity(i);
+      } catch (Exception ex) {
+        callback.invoke("error");
+      }
+    } else {
+      Intent chooser = Intent.createChooser(i, "Send Mail");
+      chooser.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+      try {
+        reactContext.startActivity(chooser);
+      } catch (Exception ex) {
+        callback.invoke("error");
+      }
+    }
+  }
+
 }
